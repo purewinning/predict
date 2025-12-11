@@ -41,7 +41,7 @@ def fetch_data_from_srating(endpoint: str, params: Optional[Dict] = None) -> Dic
     if not api_key:
         try:
             import streamlit as st
-            api_key = st.secrets.get("SRATING_API_KEY")
+            api_key = "93833680-d6b1-11f0-bc34-529c3ffdbb93"
         except:
             pass
     
