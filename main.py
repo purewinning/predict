@@ -78,52 +78,125 @@ def load_model(sport: str):
 # DATA FETCHING FUNCTIONS
 # ============================================================================
 
-def fetch_todays_games(sport_code: str, selected_date: datetime, 
-                       use_mock: bool = False) -> pd.DataFrame:
+@st.cache_data(ttl=300)  # Cache for 5 minutes
+def get_organizations_and_divisions(sport_code: str):
     """
-    Fetch games for the selected date.
+    Get the organization and divisions for a specific sport.
+    
+    Args:
+        sport_code: 'CBB' or 'CFB'
+        
+    Returns:
+        Tuple of (organization_id, divisions_list)
+    """
+    try:
+        # Fetch all organizations
+        all_orgs = fetch_data_from_srating('organization/read', {'inactive': '0'})
+        
+        # Find organization matching sport code
+        sport_mapping = {
+            'CBB': ['NCAAM', 'CBB', 'NCAA Basketball'],
+            'CFB': ['CFB', 'NCAAF', 'NCAA Football']
+        }
+        
+        matching_org = None
+        for org in all_orgs:
+            if org.get('code') in sport_mapping.get(sport_code, []):
+                matching_org = org
+                break
+        
+        if not matching_org:
+            return None, []
+        
+        org_id = matching_org['organization_id']
+        
+        # Fetch divisions for this organization
+        divisions = fetch_data_from_srating('division/read', {
+            'organization_id': org_id,
+            'inactive': '0'
+        })
+        
+        return org_id, divisions
+        
+    except Exception as e:
+        st.error(f"Error fetching organizations/divisions: {e}")
+        return None, []
+
+
+def fetch_todays_games(sport_code: str, selected_date: datetime) -> pd.DataFrame:
+    """
+    Fetch REAL games for the selected date from srating.io API.
     
     Args:
         sport_code: 'CBB' or 'CFB'
         selected_date: Date to fetch games for
-        use_mock: If True, generate mock data instead of API call
         
     Returns:
         DataFrame with today's games
     """
-    if use_mock:
-        # Generate mock games for demonstration
-        return generate_mock_todays_games(sport_code, selected_date)
-    
     try:
-        # Real API call
-        # Note: You'll need to customize organization_id and division_id
-        # based on your specific needs
-        params = {
-            'organization_id': '1',  # Customize
-            'division_id': '1',      # Customize
-            'start_date': selected_date.strftime('%Y-%m-%d')
-        }
+        # Get organization and divisions for this sport
+        org_id, divisions = get_organizations_and_divisions(sport_code)
         
-        games = fetch_data_from_srating('game/getGames', params)
-        
-        if not games:
+        if not org_id or not divisions:
+            st.warning(f"Could not find organization/divisions for {sport_code}")
             return pd.DataFrame()
         
-        df = pd.DataFrame(games)
+        # Fetch games from ALL divisions for this sport
+        all_games = []
+        
+        with st.spinner(f"Fetching games from {len(divisions)} division(s)..."):
+            for division in divisions:
+                div_id = division['division_id']
+                
+                try:
+                    params = {
+                        'organization_id': org_id,
+                        'division_id': div_id,
+                        'start_date': selected_date.strftime('%Y-%m-%d')
+                    }
+                    
+                    games = fetch_data_from_srating('game/getGames', params)
+                    
+                    if games:
+                        # Add division info to each game
+                        for game in games:
+                            game['division_name'] = division.get('name', 'Unknown')
+                        all_games.extend(games)
+                        
+                except Exception as e:
+                    st.warning(f"Could not fetch from division {division.get('name')}: {e}")
+                    continue
+        
+        if not all_games:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(all_games)
         
         # Standardize column names
         column_mapping = {
             'home_team_id': 'home_team',
             'away_team_id': 'away_team',
-            'start_datetime': 'game_time'
+            'home_team_name': 'home_team',
+            'away_team_name': 'away_team',
+            'start_datetime': 'game_time',
+            'start_date': 'game_time'
         }
-        df = df.rename(columns=column_mapping)
+        
+        for old_col, new_col in column_mapping.items():
+            if old_col in df.columns and new_col not in df.columns:
+                df[new_col] = df[old_col]
+        
+        # Ensure we have required columns
+        if 'home_team' not in df.columns or 'away_team' not in df.columns:
+            st.error("API response missing team information")
+            return pd.DataFrame()
         
         return df
         
     except Exception as e:
         st.error(f"Error fetching games: {e}")
+        st.exception(e)  # Show full error for debugging
         return pd.DataFrame()
 
 
@@ -471,12 +544,11 @@ def main():
     # Fetch games button
     if st.button("🔍 Fetch Games & Generate Predictions", type="primary", use_container_width=True):
         
-        with st.spinner("Fetching games..."):
-            # Fetch today's games
+        with st.spinner("Fetching REAL games from srating.io API..."):
+            # Fetch today's games - REAL DATA ONLY
             games_df = fetch_todays_games(
                 sport_code=sport,
-                selected_date=datetime.combine(selected_date, datetime.min.time()),
-                use_mock=True  # Set to False when API is available
+                selected_date=datetime.combine(selected_date, datetime.min.time())
             )
         
         if games_df.empty:
