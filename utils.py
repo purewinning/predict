@@ -34,16 +34,20 @@ def fetch_data_from_srating(endpoint: str, params: Optional[Dict] = None) -> Dic
         ValueError: If SRATING_API_KEY is not set
         requests.HTTPError: If the API request fails
     """
-    # Get API key from environment variable or Streamlit secrets
-    api_key = os.getenv('SRATING_API_KEY')
+    # API Key - hardcoded for immediate use
+    api_key = "93833680-d6b1-11f0-bc34-529c3ffdbb93"
     
-    # Try Streamlit secrets if environment variable not found
+    # Fallback: Try environment variable or Streamlit secrets if hardcoded key fails
     if not api_key:
-        try:
-            import streamlit as st
-            api_key = "93833680-d6b1-11f0-bc34-529c3ffdbb93"
-        except:
-            pass
+        api_key = os.getenv('SRATING_API_KEY')
+        
+        # Try Streamlit secrets if environment variable not found
+        if not api_key:
+            try:
+                import streamlit as st
+                api_key = st.secrets.get("SRATING_API_KEY")
+            except:
+                pass
     
     if not api_key:
         raise ValueError(
