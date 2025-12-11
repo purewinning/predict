@@ -144,16 +144,23 @@ def generate_mock_todays_games(sport_code: str, date: datetime) -> pd.DataFrame:
         teams = [
             'Duke', 'North Carolina', 'Kentucky', 'Kansas', 'UCLA',
             'Villanova', 'Michigan', 'Arizona', 'Gonzaga', 'Virginia',
-            'Texas', 'Tennessee', 'Auburn', 'Purdue', 'Houston'
+            'Texas', 'Tennessee', 'Auburn', 'Purdue', 'Houston',
+            'Connecticut', 'Marquette', 'Creighton', 'Xavier', 'Baylor',
+            'Illinois', 'Indiana', 'Wisconsin', 'Maryland', 'Florida',
+            'Arkansas', 'Alabama', 'Mississippi State', 'Texas A&M', 'Missouri'
         ]
     else:  # CFB
         teams = [
             'Alabama', 'Georgia', 'Ohio State', 'Michigan', 'Texas',
             'USC', 'Notre Dame', 'Clemson', 'Oregon', 'Penn State',
-            'Florida State', 'LSU', 'Oklahoma', 'Tennessee', 'Washington'
+            'Florida State', 'LSU', 'Oklahoma', 'Tennessee', 'Washington',
+            'Miami', 'Florida', 'Auburn', 'Texas A&M', 'Ole Miss',
+            'Missouri', 'Kentucky', 'South Carolina', 'Arkansas', 'Utah',
+            'Colorado', 'Kansas State', 'TCU', 'Baylor', 'Oklahoma State'
         ]
     
-    n_games = np.random.randint(5, 12)
+    # Limit games to max 7 to ensure we don't run out of teams
+    n_games = np.random.randint(5, min(8, len(teams)//2))
     games = []
     
     selected_teams = np.random.choice(teams, size=n_games*2, replace=False)
